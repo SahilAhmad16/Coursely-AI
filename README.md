@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Coursely AI
 
-## Getting Started
+Coursely AI is a marketplace with three seller paths:
 
-First, run the development server:
+1. Digital Products sold and delivered through Coursely AI.
+2. Professional Services delivered through a customer-provider workflow.
+3. Products shown with approved affiliate links. The partner platform handles payment, delivery, tracking, returns, and affiliate earnings.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Coursely AI does not accept or ship physical inventory directly.
+
+## Seller pricing
+
+- Every seller category receives its first 28 days free.
+- Professional Services: ₹50 per 28 days, with no per-sale commission.
+- Digital Products: ₹60 per 28 days, plus 10% on confirmed digital sales completed through Coursely AI.
+- Product Affiliate: ₹50 per 28 days. Coursely AI does not deduct a sale commission because checkout happens on the partner platform.
+- An expired required plan locks the affected seller tools and listings until renewal is confirmed.
+
+The database retains the legacy internal plan value `physical` for migration compatibility. In the user interface it always means the Product Affiliate seller plan.
+
+## Implemented locally
+
+- Email/password and Google authentication through Supabase, password reset, protected account and seller routes.
+- Buyer profile, saved addresses, wishlist, cart, marketplace search and filters.
+- Seller application and verification, store profile/logo/banner, separate listing forms, private digital files, media uploads, and admin listing review.
+- Professional-service conversations, file attachments, projects, milestones, delivery/revision/dispute states.
+- Admin views for users, sellers, listings, orders, payments, subscriptions, reports, coupons, banners, disputes, tickets, and audit logs.
+- Database RLS, role checks, seller-plan locks, digital-sale commission ledger, private storage, and rate-limit tables.
+- Free smart-help chatbot with local marketplace knowledge, quick questions, relevant page links, unknown-question fallback, and no paid API dependency.
+
+## Run locally on Windows
+
+Open a terminal in this folder and run:
+
+```powershell
+npm.cmd run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open `http://localhost:3000`. Keep that terminal open while using the website.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copy `.env.example` to `.env.local` and add the required Supabase public values. `.env.local` is private and must never be committed or shared.
 
-## Learn More
+Never use a `NEXT_PUBLIC_` prefix for payment secrets, OpenAI keys, webhook secrets, or privileged Supabase keys.
 
-To learn more about Next.js, take a look at the following resources:
+## Final production phase
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The following steps require the final domain, approved provider accounts, or production secrets and are intentionally deferred:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Cashfree live checkout, signed webhooks, refunds, seller-plan renewals, and bank settlement.
+- Production domain/deployment and final Supabase/Google redirect URLs.
+- Resend domain verification and production transactional email.
+- Final legal/contact details, analytics IDs, monitoring, backup verification, and end-to-end live payment tests.
+- Optional generative AI can be considered later, but it is not required for the free smart-help chatbot.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Never paste payment-provider secrets, OpenAI keys, passwords, OTPs, or bank details into source code or chat.

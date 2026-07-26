@@ -1,26 +1,102 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; font-family: var(--font-sans); }
+a { text-decoration: none; }
+
+@keyframes coursely-float {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50% { transform: translate3d(0, -14px, 0) rotate(2deg); }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes coursely-drift {
+  0%, 100% { transform: translate3d(-3%, -2%, 0) scale(1); }
+  50% { transform: translate3d(4%, 3%, 0) scale(1.08); }
+}
+
+@keyframes coursely-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.coursely-orb { animation: coursely-drift 12s ease-in-out infinite; }
+.coursely-float { animation: coursely-float 6s ease-in-out infinite; }
+.coursely-rise { animation: coursely-rise 700ms cubic-bezier(.2,.8,.2,1) both; }
+.coursely-rise-delay { animation-delay: 140ms; }
+
+.coursely-grid {
+  background-image: linear-gradient(rgba(15, 23, 42, .07) 1px, transparent 1px), linear-gradient(90deg, rgba(15, 23, 42, .07) 1px, transparent 1px);
+  background-size: 38px 38px;
+  mask-image: linear-gradient(to bottom, black, transparent 86%);
+}
+
+@keyframes coursely-pulse {
+  0%, 100% { transform: scale(.92); opacity: .45; }
+  50% { transform: scale(1.12); opacity: .9; }
+}
+
+.coursely-pulse { animation: coursely-pulse 5s ease-in-out infinite; }
+
+@keyframes coursely-aurora {
+  0%, 100% { transform: translate3d(-3%, -2%, 0) scale(.94); opacity: .58; }
+  50% { transform: translate3d(8%, 8%, 0) scale(1.12); opacity: 1; }
+}
+
+@keyframes coursely-orbit {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes coursely-card-drift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -8px, 0); }
+}
+
+@keyframes coursely-progress {
+  0%, 100% { transform: translateX(-12%); opacity: .78; }
+  50% { transform: translateX(11%); opacity: 1; }
+}
+
+@keyframes coursely-status-dot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(110, 231, 183, .3); }
+  50% { box-shadow: 0 0 0 8px rgba(110, 231, 183, 0); }
+}
+
+@keyframes coursely-cta-orb {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(16deg) scale(1.08); }
+}
+
+.coursely-aurora { animation: coursely-aurora 15s ease-in-out infinite; }
+.coursely-orbit { animation: coursely-orbit 28s linear infinite; }
+.coursely-card-drift { animation: coursely-card-drift 6.5s ease-in-out infinite; }
+.coursely-progress { animation: coursely-progress 4s ease-in-out infinite; }
+.coursely-status-dot { animation: coursely-status-dot 2.4s ease-in-out infinite; }
+.coursely-cta-orb { animation: coursely-cta-orb 9s ease-in-out infinite; }
+
+.coursely-dark-grid {
+  background-image: linear-gradient(rgba(148, 163, 184, .09) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, .09) 1px, transparent 1px);
+  background-size: 54px 54px;
+  mask-image: linear-gradient(to bottom, black, transparent 92%);
+}
+
+.coursely-grain {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.3'/%3E%3C/svg%3E");
+}
+
+.coursely-shine-text {
+  background: linear-gradient(105deg, #6ee7b7 10%, #ecfeff 50%, #a7f3d0 90%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
 }
