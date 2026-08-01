@@ -66,7 +66,7 @@ const articles: HelpArticle[] = [
   },
   {
     keywords: ["how to sell a digital product", "sell digital product", "digital product", "digital", "ebook", "template", "download", "file", "pdf", "zip", "license", "instant delivery"],
-    reply: "A Digital Product listing includes a title, description, category, price, cover or thumbnail, previews, file format, version, license, and private delivery file. Buyers receive access only after a paid order is verified. Live automatic delivery will be enabled with the Cashfree payment webhook during the production phase.",
+    reply: "A Digital Product listing includes a title, description, category, price, cover or thumbnail, previews, file format, version, license, and private delivery file. Buyers receive access only after a paid order is verified. Cashfree checkout and signed payment confirmation are supported when the owner enables the payment configuration.",
     suggestions: ["When is the 10% commission charged?", "How do I upload a listing?", "How will refunds work?"],
     href: "/marketplace?type=digital",
     linkLabel: "View Digital Products",
@@ -87,12 +87,12 @@ const articles: HelpArticle[] = [
   },
   {
     keywords: ["payment", "cashfree", "upi", "card", "netbanking", "checkout", "pay", "transaction", "success", "failed"],
-    reply: "Real payments are not enabled on the local website yet. Cashfree checkout for UPI, cards, and net banking, together with signed webhooks, will be connected during the production phase. An order or seller renewal will be marked as paid only after the server verifies Cashfree's confirmation.",
+    reply: "Coursely AI supports Cashfree checkout for available payment methods and verifies signed payment confirmations on the server. If the payment button says setup pending, the owner has not enabled the secure Cashfree configuration yet. An order or seller renewal is marked paid only after server verification.",
     suggestions: ["When will I receive a digital download?", "How will refunds work?", "How will seller renewal work?"],
   },
   {
     keywords: ["order", "history", "invoice", "refund", "return", "cancel", "cancellation"],
-    reply: "Coursely AI Digital Product and Service orders will appear in the Order History section after live checkout is enabled. Refund and invoice flows will be enabled with the Cashfree production integration. Affiliate Product orders, invoices, returns, and refunds are handled by the external partner.",
+    reply: "Confirmed Coursely AI Digital Product and Service orders appear in Order History. Affiliate Product orders, invoices, returns, and refunds are handled by the external partner. Refund and invoice controls may depend on the platform owner's current payment configuration.",
     suggestions: ["How will payments work?", "Where are affiliate returns handled?", "Create a support ticket"],
     href: "/account",
     linkLabel: "Open My Account",
