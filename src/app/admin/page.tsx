@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createCoupon, createPromotionalBanner, reviewListing, reviewListingReport, reviewSellerVerification, reviewServiceDispute, reviewSupportTicket, toggleCoupon, togglePromotionalBanner } from "@/app/actions/admin";
+import { reviewPayoutAccount, reviewWithdrawal } from "@/app/actions/payouts";
 import { formatPrice, isSupabaseConfigured } from "@/lib/data/marketplace";
 import { createClient } from "@/lib/supabase/server";
 
@@ -19,6 +20,8 @@ type BannerRow = { id: string; title: string; subtitle: string | null; href: str
 type UserRow = { id: string; full_name: string; username: string | null; role: "buyer" | "seller" | "admin"; created_at: string };
 type OrderRow = { id: string; order_number: number; status: string; total_paise: number; created_at: string; profiles: { full_name: string } | { full_name: string }[] | null };
 type SubscriptionRow = { id: string; plan_type: "service" | "digital" | "physical"; amount_paise: number; status: string; is_trial: boolean; current_period_end: string | null; stores: { name: string } | { name: string }[] | null };
+type PayoutAccountRow = { id: string; seller_id: string; method: "upi" | "bank"; account_holder_name: string; upi_id: string | null; bank_name: string | null; bank_account_number: string | null; bank_ifsc: string | null; verification_status: "unverified" | "rejected"; verification_note: string | null; updated_at: string; profiles: { full_name: string } | { full_name: string }[] | null };
+type WithdrawalRow = { id: string; seller_id: string; amount_paise: number; status: "requested" | "processing"; requested_at: string; seller_payout_accounts: { method: "upi" | "bank"; account_holder_name: string; upi_id: string | null; bank_name: string | null; bank_account_number: string | null; bank_ifsc: string | null } | { method: "upi" | "bank"; account_holder_name: string; upi_id: string | null; bank_name: string | null; bank_account_number: string | null; bank_ifsc: string | null }[] | null; profiles: { full_name: string } | { full_name: string }[] | null };
 
 function first<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value ?? null;
@@ -32,7 +35,7 @@ export default async function AdminPage() {
   const { data: profile } = await supabase.from("profiles").select("role,full_name").eq("id", user.id).maybeSingle();
   if (profile?.role !== "admin") notFound();
 
-  const [{ data: products }, { data: ledger }, { data: audit }, { data: reports }, { data: verifications }, { data: sellerStores }, { data: disputes }, { data: tickets }, { data: couponRows }, { data: bannerRows }, { data: userRows }, { data: orderRows }, { data: subscriptionRows }] = await Promise.all([
+  const [{ data: products }, { data: ledger }, { data: audit }, { data: reports }, { data: verifications }, { data: sellerStores }, { data: disputes }, { data: tickets }, { data: couponRows }, { data: bannerRows }, { data: userRows }, { data: orderRows }, { data: subscriptionRows }, { data: payoutAccountRows }, { data: withdrawalRequestRows }] = await Promise.all([
     supabase.from("products").select("id,title,listing_type,price_paise,stores(name,is_verified)").eq("status", "pending_review").order("created_at", { ascending: true }),
     supabase.from("platform_ledger").select("gross_paise,commission_paise,seller_net_paise,status").order("created_at", { ascending: false }),
     supabase.from("audit_logs").select("id,action,resource_type,created_at,profiles(full_name)").order("created_at", { ascending: false }).limit(12),
@@ -46,6 +49,8 @@ export default async function AdminPage() {
     supabase.from("profiles").select("id,full_name,username,role,created_at").order("created_at", { ascending: false }).limit(30),
     supabase.from("orders").select("id,order_number,status,total_paise,created_at,profiles!orders_buyer_id_fkey(full_name)").order("created_at", { ascending: false }).limit(30),
     supabase.from("platform_subscriptions").select("id,plan_type,amount_paise,status,is_trial,current_period_end,stores(name)").order("created_at", { ascending: false }).limit(30),
+    supabase.from("seller_payout_accounts").select("id,seller_id,method,account_holder_name,upi_id,bank_name,bank_account_number,bank_ifsc,verification_status,verification_note,updated_at,profiles!seller_payout_accounts_seller_id_fkey(full_name)").in("verification_status", ["unverified", "rejected"]).order("updated_at", { ascending: true }).limit(30),
+    supabase.from("seller_withdrawal_requests").select("id,seller_id,amount_paise,status,requested_at,seller_payout_accounts(method,account_holder_name,upi_id,bank_name,bank_account_number,bank_ifsc),profiles!seller_withdrawal_requests_seller_id_fkey(full_name)").in("status", ["requested", "processing"]).order("requested_at", { ascending: true }).limit(50),
   ]);
 
   const listings = (products ?? []) as PendingProduct[];
@@ -61,6 +66,8 @@ export default async function AdminPage() {
   const users = (userRows ?? []) as UserRow[];
   const orders = (orderRows ?? []) as OrderRow[];
   const subscriptions = (subscriptionRows ?? []) as SubscriptionRow[];
+  const payoutAccounts = (payoutAccountRows ?? []) as PayoutAccountRow[];
+  const withdrawalRequests = (withdrawalRequestRows ?? []) as WithdrawalRow[];
   const documentUrls = new Map(await Promise.all(verificationRows.map(async (verification) => {
     const { data } = await supabase.storage.from("seller-kyc").createSignedUrl(verification.document_path, 60 * 10);
     return [verification.id, data?.signedUrl ?? null] as const;
@@ -77,6 +84,8 @@ export default async function AdminPage() {
       <p className="mt-3 text-slate-600">Review sellers, private verification documents, listings, safety reports, disputes, and the platform ledger. {profile.full_name ? `Signed in as ${profile.full_name}.` : ""}</p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-3"><Metric label="Platform commission earned" value={formatPrice(earnedCommission)} /><Metric label="Paid order volume" value={formatPrice(grossVolume)} /><Metric label="Seller net earnings" value={formatPrice(sellerNet)} /></div>
+
+      <PayoutOperations accounts={payoutAccounts} withdrawals={withdrawalRequests} />
 
       <section className="mt-8 rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-bold uppercase tracking-wider text-emerald-700">Seller KYC</p><h2 className="mt-1 text-2xl font-black">Verification review queue</h2><p className="mt-1 text-sm text-slate-600">Approve only after checking the private document and seller information.</p></div><span className="rounded-full bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">{verificationRows.length} pending</span></div>
@@ -118,6 +127,18 @@ export default async function AdminPage() {
 
 function SupportTicketQueue({ tickets }: { tickets: SupportTicketRow[] }) {
   return <section className="mt-8 rounded-2xl bg-white p-6 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-bold uppercase tracking-wider text-indigo-700">Customer support</p><h2 className="mt-1 text-xl font-black">Open support tickets</h2></div><span className="rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-bold text-indigo-800">{tickets.length} open</span></div>{tickets.length ? <div className="mt-5 space-y-4">{tickets.map((ticket) => { const customer = first(ticket.profiles); return <article key={ticket.id} className="rounded-xl border border-slate-200 p-4"><p className="font-bold">{ticket.subject}</p><p className="mt-1 text-xs capitalize text-indigo-700">{ticket.category.replaceAll("_", " ")} · {ticket.status.replaceAll("_", " ")} · {customer?.full_name || "Customer"}</p><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">{ticket.message}</p><form action={reviewSupportTicket} className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto]"><input type="hidden" name="ticketId" value={ticket.id} /><textarea name="adminNote" maxLength={4000} className="min-h-20 rounded-xl border border-slate-300 p-3 text-sm" placeholder="Response shown privately to the customer" /><button name="decision" value="in_progress" className="rounded-xl border border-indigo-200 px-4 py-2 text-sm font-bold text-indigo-800">Mark reviewing</button><button name="decision" value="resolved" className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white">Resolve</button></form></article>; })}</div> : <p className="mt-4 text-sm text-slate-600">There are no open support tickets.</p>}</section>;
+}
+
+function PayoutOperations({ accounts, withdrawals }: { accounts: PayoutAccountRow[]; withdrawals: WithdrawalRow[] }) {
+  return <section id="payout-operations" className="mt-8 rounded-3xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
+    <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">Money operations</p><h2 className="mt-2 text-2xl font-black">Seller payout verification and withdrawals</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">Verify the destination before approving money. Until Cashfree Payouts is activated, transfer outside Coursely AI first, then mark the request paid using the bank or UPI reference.</p></div><span className="rounded-full bg-white/10 px-4 py-2 text-sm font-bold">{accounts.length + withdrawals.length} actions</span></div>
+
+    <div className="mt-7 grid gap-6 xl:grid-cols-2">
+      <div><h3 className="font-black">Payout accounts</h3><div className="mt-3 space-y-3">{accounts.map((account) => { const seller = first(account.profiles); return <article key={account.id} className="rounded-2xl border border-white/10 bg-white/5 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-black">{account.account_holder_name}</p><p className="mt-1 text-sm text-slate-300">{seller?.full_name || "Seller"} · {account.method === "upi" ? `UPI ${account.upi_id}` : `${account.bank_name} · A/C ${account.bank_account_number} · ${account.bank_ifsc}`}</p><p className="mt-2 text-xs text-slate-400">Updated {new Date(account.updated_at).toLocaleString("en-IN")}</p></div><span className="rounded-full bg-amber-300/15 px-3 py-1 text-xs font-bold capitalize text-amber-200">{account.verification_status}</span></div><form action={reviewPayoutAccount} className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto_auto]"><input type="hidden" name="payoutAccountId" value={account.id} /><input name="note" maxLength={1000} placeholder="Verification note" className="rounded-xl border border-white/15 bg-white/10 p-3 text-sm text-white placeholder:text-slate-400" /><button name="decision" value="rejected" className="rounded-xl border border-rose-300/30 px-4 py-2 text-sm font-bold text-rose-200">Reject</button><button name="decision" value="verified" className="rounded-xl bg-emerald-400 px-4 py-2 text-sm font-black text-slate-950">Verify</button></form></article>; })}{!accounts.length && <p className="rounded-2xl bg-white/5 p-5 text-sm text-slate-400">No payout accounts need review.</p>}</div></div>
+
+      <div><h3 className="font-black">Withdrawal queue</h3><div className="mt-3 space-y-3">{withdrawals.map((withdrawal) => { const seller = first(withdrawal.profiles); const destination = first(withdrawal.seller_payout_accounts); return <article key={withdrawal.id} className="rounded-2xl border border-white/10 bg-white/5 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xl font-black">{formatPrice(withdrawal.amount_paise)}</p><p className="mt-1 text-sm text-slate-300">{seller?.full_name || "Seller"} · {destination?.method === "upi" ? destination.upi_id : `${destination?.bank_name} · A/C ${destination?.bank_account_number} · ${destination?.bank_ifsc}`}</p><p className="mt-2 text-xs text-slate-400">Requested {new Date(withdrawal.requested_at).toLocaleString("en-IN")}</p></div><span className="rounded-full bg-sky-300/15 px-3 py-1 text-xs font-bold capitalize text-sky-200">{withdrawal.status}</span></div><form action={reviewWithdrawal} className="mt-4 grid gap-2"><input type="hidden" name="withdrawalId" value={withdrawal.id} /><input name="reference" maxLength={200} placeholder="Bank/UPI transfer reference (required when paid)" className="rounded-xl border border-white/15 bg-white/10 p-3 text-sm text-white placeholder:text-slate-400" /><input name="note" maxLength={1000} placeholder="Private note to seller" className="rounded-xl border border-white/15 bg-white/10 p-3 text-sm text-white placeholder:text-slate-400" /><div className="flex flex-wrap gap-2"><button name="decision" value="processing" className="rounded-xl border border-sky-300/30 px-4 py-2 text-xs font-bold text-sky-200">Processing</button><button name="decision" value="rejected" className="rounded-xl border border-rose-300/30 px-4 py-2 text-xs font-bold text-rose-200">Reject</button><button name="decision" value="failed" className="rounded-xl border border-amber-300/30 px-4 py-2 text-xs font-bold text-amber-200">Transfer failed</button><button name="decision" value="paid" className="rounded-xl bg-emerald-400 px-4 py-2 text-xs font-black text-slate-950">Mark paid</button></div></form></article>; })}{!withdrawals.length && <p className="rounded-2xl bg-white/5 p-5 text-sm text-slate-400">No withdrawals are waiting.</p>}</div></div>
+    </div>
+  </section>;
 }
 
 function MarketingControls({ coupons, banners }: { coupons: CouponRow[]; banners: BannerRow[] }) {

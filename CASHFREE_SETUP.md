@@ -2,6 +2,14 @@
 
 The application code starts in Cashfree sandbox mode. Do not place API credentials in source code, GitHub, screenshots, or chat.
 
+## Seller withdrawals
+
+Coursely AI keeps a separate seller wallet and withdrawal-request ledger. Sellers can submit a UPI ID or Indian bank account, and an administrator must verify it before withdrawals unlock.
+
+Until Cashfree Payouts or Easy Split is approved for the merchant account, payouts are processed manually: transfer the approved amount from the platform bank account, enter the UPI/bank reference in the admin panel, and only then mark the request as paid. Never mark a request paid before the external transfer succeeds.
+
+When Cashfree Payouts is activated, the same withdrawal record can store the provider transfer ID in `provider_payout_id`; the seller wallet does not need to be redesigned.
+
 ## Vercel environment variables
 
 Add these in the Coursely AI Vercel project under Settings -> Environment Variables:

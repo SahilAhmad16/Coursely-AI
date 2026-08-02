@@ -4,6 +4,7 @@ import { signOut } from "@/app/actions/auth";
 import { SellerVerificationForm } from "@/components/seller-verification-form";
 import { ServiceSellerLocked } from "@/components/service-seller-locked";
 import { SellerStoreApplicationForm } from "@/components/seller-store-application-form";
+import { SellerWallet } from "@/components/seller-wallet";
 import { StoreSettings } from "@/components/store-settings";
 import { formatPrice, isSupabaseConfigured } from "@/lib/data/marketplace";
 import { getStoreSellerAccess, isSellerPlanActive, planPriceLabel, SELLER_PLANS, type SellerPlanSubscription } from "@/lib/service-seller-plan";
@@ -12,7 +13,9 @@ import { createClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 type ProductRow = { id: string; title: string; status: "draft" | "pending_review" | "published" | "archived" | "rejected"; price_paise: number; listing_type: string };
-type LedgerRow = { commission_paise: number; seller_net_paise: number };
+type LedgerRow = { commission_paise: number; seller_net_paise: number; status: "pending" | "earned" | "settled" | "refunded" };
+type PayoutAccountRow = { id: string; method: "upi" | "bank"; account_holder_name: string; upi_id: string | null; bank_name: string | null; bank_account_number: string | null; bank_ifsc: string | null; verification_status: "unverified" | "verified" | "rejected"; verification_note: string | null };
+type WithdrawalRow = { id: string; amount_paise: number; status: "requested" | "processing" | "paid" | "rejected" | "cancelled" | "failed"; provider_payout_id: string | null; admin_note: string | null; requested_at: string };
 type VerificationRow = {
   status: "submitted" | "approved" | "changes_requested" | "rejected";
   legal_name: string;
@@ -24,19 +27,21 @@ type VerificationRow = {
   submitted_at: string;
 };
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ wallet?: string }> }) {
   if (!isSupabaseConfigured()) return <SetupState />;
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: store }, { data: products }, { data: profile }, { data: ledger }, { data: verification }] = await Promise.all([
+  const [{ data: store }, { data: products }, { data: profile }, { data: ledger }, { data: verification }, { data: payoutAccount }, { data: withdrawals }] = await Promise.all([
     supabase.from("stores").select("id,name,slug,description,is_verified,logo_path,banner_path").eq("owner_id", user.id).maybeSingle(),
     supabase.from("products").select("id,title,status,price_paise,listing_type,stores!inner(owner_id)").eq("stores.owner_id", user.id).order("updated_at", { ascending: false }).limit(10),
     supabase.from("profiles").select("full_name,role").eq("id", user.id).maybeSingle(),
-    supabase.from("platform_ledger").select("commission_paise,seller_net_paise").order("created_at", { ascending: false }),
+    supabase.from("platform_ledger").select("commission_paise,seller_net_paise,status").order("created_at", { ascending: false }),
     supabase.from("seller_verifications").select("status,legal_name,business_type,document_kind,document_last4,address_line,review_note,submitted_at").eq("seller_id", user.id).maybeSingle(),
+    supabase.from("seller_payout_accounts").select("id,method,account_holder_name,upi_id,bank_name,bank_account_number,bank_ifsc,verification_status,verification_note").eq("seller_id", user.id).maybeSingle(),
+    supabase.from("seller_withdrawal_requests").select("id,amount_paise,status,provider_payout_id,admin_note,requested_at").eq("seller_id", user.id).order("requested_at", { ascending: false }),
   ]);
 
   const planAccess = store ? await getStoreSellerAccess(supabase, store.id) : { subscriptions: [], lockedPlans: [], isLocked: false };
@@ -48,8 +53,13 @@ export default async function DashboardPage() {
   const canCreateListings = Boolean(store?.is_verified);
   const published = rows.filter((item) => item.status === "published").length;
   const pending = rows.filter((item) => item.status === "pending_review").length;
-  const netEarnings = ledgerRows.reduce((total, item) => total + item.seller_net_paise, 0);
-  const commissionPaid = ledgerRows.reduce((total, item) => total + item.commission_paise, 0);
+  const withdrawableLedger = ledgerRows.filter((item) => item.status === "earned" || item.status === "settled");
+  const netEarnings = withdrawableLedger.reduce((total, item) => total + item.seller_net_paise, 0);
+  const commissionPaid = withdrawableLedger.reduce((total, item) => total + item.commission_paise, 0);
+  const withdrawalRows = (withdrawals ?? []) as WithdrawalRow[];
+  const reservedPaise = withdrawalRows.filter((item) => item.status === "requested" || item.status === "processing").reduce((total, item) => total + item.amount_paise, 0);
+  const paidPaise = withdrawalRows.filter((item) => item.status === "paid").reduce((total, item) => total + item.amount_paise, 0);
+  const walletMessage = (await searchParams).wallet;
 
   return <main className="min-h-screen bg-slate-100">
     <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
@@ -81,6 +91,8 @@ export default async function DashboardPage() {
         <Metric label="Your net earnings" value={formatPrice(netEarnings)} />
         <Metric label="Platform commission (10%)" value={formatPrice(commissionPaid)} />
       </div>
+
+      {store && <SellerWallet account={(payoutAccount ?? null) as PayoutAccountRow | null} withdrawals={withdrawalRows} earnedPaise={netEarnings} reservedPaise={reservedPaise} paidPaise={paidPaise} message={walletMessage} />}
 
       {!store && <SellerStoreApplicationForm />}
 
