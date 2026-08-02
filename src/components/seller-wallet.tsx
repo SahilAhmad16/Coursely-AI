@@ -1,4 +1,4 @@
-import { cancelWithdrawal, requestWithdrawal, savePayoutAccount } from "@/app/actions/payouts";
+import { requestWithdrawal, savePayoutAccount } from "@/app/actions/payouts";
 import { formatPrice } from "@/lib/data/marketplace";
 
 type PayoutAccount = {
@@ -11,6 +11,7 @@ type PayoutAccount = {
   bank_ifsc: string | null;
   verification_status: "unverified" | "verified" | "rejected";
   verification_note: string | null;
+  provider_status: string | null;
 };
 
 type Withdrawal = {
@@ -18,16 +19,23 @@ type Withdrawal = {
   amount_paise: number;
   status: "requested" | "processing" | "paid" | "rejected" | "cancelled" | "failed";
   provider_payout_id: string | null;
+  provider_status: string | null;
+  provider_status_code: string | null;
+  provider_utr: string | null;
   admin_note: string | null;
   requested_at: string;
 };
 
 const messages: Record<string, string> = {
-  "account-saved": "Payout details saved. Coursely AI will verify them before withdrawals are enabled.",
+  "account-verified": "Your payout account was verified automatically. Withdrawals are enabled.",
+  "verification-pending": "Cashfree is verifying your payout account. The status will update after verification.",
   "invalid-account": "Enter valid UPI or bank details.",
   "save-failed": "Payout details could not be saved. Please try again.",
-  requested: "Withdrawal request submitted successfully.",
-  cancelled: "Withdrawal request cancelled.",
+  "beneficiary-failed": "Cashfree could not verify these payout details. Check them and try again.",
+  "payouts-not-configured": "Automatic payouts are not active yet. The platform owner must finish Cashfree Payouts setup.",
+  processing: "Your withdrawal was sent to Cashfree and is processing automatically.",
+  paid: "Your withdrawal was transferred successfully.",
+  "transfer-failed": "The transfer failed. The amount is available in your wallet again.",
   "verify-required": "Your payout account must be verified before you can withdraw.",
   "insufficient-balance": "The requested amount is higher than your available balance.",
   "invalid-amount": "Enter an amount of at least INR 100.",
@@ -58,7 +66,7 @@ export function SellerWallet({ account, withdrawals, earnedPaise, reservedPaise,
     <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-2">
       <div>
         <div className="flex items-center justify-between gap-3"><div><h2 className="text-xl font-black">Payout account</h2><p className="mt-1 text-sm text-slate-600">Use your own UPI ID or Indian bank account.</p></div>{account && <Status status={account.verification_status} />}</div>
-        {notice && <p className={`mt-4 rounded-xl p-3 text-sm font-semibold ${message?.includes("saved") || message === "requested" || message === "cancelled" ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>{notice}</p>}
+        {notice && <p className={`mt-4 rounded-xl p-3 text-sm font-semibold ${message === "account-verified" || message === "processing" || message === "paid" ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>{notice}</p>}
         {account && <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm"><p className="font-bold">{account.account_holder_name}</p><p className="mt-1 text-slate-600">{account.method === "upi" ? `UPI · ${mask(account.upi_id)}` : `${account.bank_name} · A/C ${mask(account.bank_account_number)} · ${account.bank_ifsc}`}</p>{account.verification_note && <p className="mt-2 text-xs text-slate-500">{account.verification_note}</p>}</div>}
         <form action={savePayoutAccount} className="mt-5 grid gap-3">
           <select name="method" defaultValue={account?.method ?? "upi"} className="rounded-xl border border-slate-300 bg-white p-3" required><option value="upi">UPI</option><option value="bank">Bank transfer</option></select>
@@ -68,20 +76,20 @@ export function SellerWallet({ account, withdrawals, earnedPaise, reservedPaise,
           <input name="bankName" placeholder="Bank name" className="rounded-xl border border-slate-300 p-3" />
           <input name="bankAccountNumber" inputMode="numeric" placeholder="Bank account number" className="rounded-xl border border-slate-300 p-3" />
           <input name="bankIfsc" placeholder="IFSC code" className="rounded-xl border border-slate-300 p-3 uppercase" />
-          <button className="rounded-xl bg-slate-950 px-5 py-3 font-bold text-white">Save and submit for verification</button>
+          <button className="rounded-xl bg-slate-950 px-5 py-3 font-bold text-white">Save and verify automatically</button>
         </form>
       </div>
 
       <div>
         <h2 className="text-xl font-black">Withdraw earnings</h2>
-        <p className="mt-1 text-sm text-slate-600">Minimum withdrawal is INR 100. Requests are reviewed before transfer.</p>
-        <form action={requestWithdrawal} className="mt-5 flex gap-3"><input name="amountRupees" type="number" min="100" max={Math.floor(availablePaise / 100)} step="0.01" required placeholder="Amount in INR" className="min-w-0 flex-1 rounded-xl border border-slate-300 p-3" /><button disabled={account?.verification_status !== "verified" || availablePaise < 10000} className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300">Request</button></form>
-        {account?.verification_status !== "verified" && <p className="mt-2 text-xs font-semibold text-amber-700">Withdrawal unlocks after the payout account is verified.</p>}
+        <p className="mt-1 text-sm text-slate-600">Minimum withdrawal is INR 100. Cashfree sends it automatically to your verified UPI or bank account.</p>
+        <form action={requestWithdrawal} className="mt-5 flex gap-3"><input name="amountRupees" type="number" min="100" max={Math.floor(availablePaise / 100)} step="0.01" required placeholder="Amount in INR" className="min-w-0 flex-1 rounded-xl border border-slate-300 p-3" /><button disabled={account?.verification_status !== "verified" || availablePaise < 10000} className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300">Withdraw</button></form>
+        {account?.verification_status !== "verified" && <p className="mt-2 text-xs font-semibold text-amber-700">Withdrawal unlocks after automatic Cashfree verification.</p>}
 
         <div className="mt-6 space-y-3">
           <h3 className="text-sm font-black uppercase tracking-wider text-slate-500">Withdrawal history</h3>
-          {withdrawals.map((withdrawal) => <article key={withdrawal.id} className="rounded-2xl border border-slate-200 p-4 text-sm"><div className="flex items-center justify-between gap-3"><div><p className="font-black">{formatPrice(withdrawal.amount_paise)}</p><p className="mt-1 text-xs text-slate-500">{new Date(withdrawal.requested_at).toLocaleString("en-IN")}</p></div><Status status={withdrawal.status} /></div>{withdrawal.provider_payout_id && <p className="mt-2 text-xs text-slate-600">Transfer reference: {withdrawal.provider_payout_id}</p>}{withdrawal.admin_note && <p className="mt-2 text-xs text-slate-600">{withdrawal.admin_note}</p>}{withdrawal.status === "requested" && <form action={cancelWithdrawal} className="mt-3"><input type="hidden" name="requestId" value={withdrawal.id} /><button className="text-xs font-bold text-rose-700">Cancel request</button></form>}</article>)}
-          {!withdrawals.length && <p className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">No withdrawal requests yet.</p>}
+          {withdrawals.map((withdrawal) => <article key={withdrawal.id} className="rounded-2xl border border-slate-200 p-4 text-sm"><div className="flex items-center justify-between gap-3"><div><p className="font-black">{formatPrice(withdrawal.amount_paise)}</p><p className="mt-1 text-xs text-slate-500">{new Date(withdrawal.requested_at).toLocaleString("en-IN")}</p></div><Status status={withdrawal.status} /></div>{withdrawal.provider_utr && <p className="mt-2 text-xs text-slate-600">UTR: {withdrawal.provider_utr}</p>}{withdrawal.provider_payout_id && <p className="mt-1 text-xs text-slate-600">Cashfree reference: {withdrawal.provider_payout_id}</p>}{withdrawal.provider_status_code && <p className="mt-1 text-xs text-slate-500">Provider status: {withdrawal.provider_status_code.replaceAll("_", " ")}</p>}{withdrawal.admin_note && <p className="mt-2 text-xs text-slate-600">{withdrawal.admin_note}</p>}</article>)}
+          {!withdrawals.length && <p className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">No withdrawals yet.</p>}
         </div>
       </div>
     </div>

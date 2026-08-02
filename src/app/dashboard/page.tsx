@@ -14,8 +14,8 @@ export const dynamic = "force-dynamic";
 
 type ProductRow = { id: string; title: string; status: "draft" | "pending_review" | "published" | "archived" | "rejected"; price_paise: number; listing_type: string };
 type LedgerRow = { commission_paise: number; seller_net_paise: number; status: "pending" | "earned" | "settled" | "refunded" };
-type PayoutAccountRow = { id: string; method: "upi" | "bank"; account_holder_name: string; upi_id: string | null; bank_name: string | null; bank_account_number: string | null; bank_ifsc: string | null; verification_status: "unverified" | "verified" | "rejected"; verification_note: string | null };
-type WithdrawalRow = { id: string; amount_paise: number; status: "requested" | "processing" | "paid" | "rejected" | "cancelled" | "failed"; provider_payout_id: string | null; admin_note: string | null; requested_at: string };
+type PayoutAccountRow = { id: string; method: "upi" | "bank"; account_holder_name: string; upi_id: string | null; bank_name: string | null; bank_account_number: string | null; bank_ifsc: string | null; verification_status: "unverified" | "verified" | "rejected"; verification_note: string | null; provider_status: string | null };
+type WithdrawalRow = { id: string; amount_paise: number; status: "requested" | "processing" | "paid" | "rejected" | "cancelled" | "failed"; provider_payout_id: string | null; provider_status: string | null; provider_status_code: string | null; provider_utr: string | null; admin_note: string | null; requested_at: string };
 type VerificationRow = {
   status: "submitted" | "approved" | "changes_requested" | "rejected";
   legal_name: string;
@@ -40,8 +40,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     supabase.from("profiles").select("full_name,role").eq("id", user.id).maybeSingle(),
     supabase.from("platform_ledger").select("commission_paise,seller_net_paise,status").order("created_at", { ascending: false }),
     supabase.from("seller_verifications").select("status,legal_name,business_type,document_kind,document_last4,address_line,review_note,submitted_at").eq("seller_id", user.id).maybeSingle(),
-    supabase.from("seller_payout_accounts").select("id,method,account_holder_name,upi_id,bank_name,bank_account_number,bank_ifsc,verification_status,verification_note").eq("seller_id", user.id).maybeSingle(),
-    supabase.from("seller_withdrawal_requests").select("id,amount_paise,status,provider_payout_id,admin_note,requested_at").eq("seller_id", user.id).order("requested_at", { ascending: false }),
+    supabase.from("seller_payout_accounts").select("id,method,account_holder_name,upi_id,bank_name,bank_account_number,bank_ifsc,verification_status,verification_note,provider_status").eq("seller_id", user.id).maybeSingle(),
+    supabase.from("seller_withdrawal_requests").select("id,amount_paise,status,provider_payout_id,provider_status,provider_status_code,provider_utr,admin_note,requested_at").eq("seller_id", user.id).order("requested_at", { ascending: false }),
   ]);
 
   const planAccess = store ? await getStoreSellerAccess(supabase, store.id) : { subscriptions: [], lockedPlans: [], isLocked: false };
