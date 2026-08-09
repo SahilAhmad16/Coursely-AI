@@ -97,7 +97,7 @@ export async function requestWithdrawal(formData: FormData) {
   const amountPaise = Math.round(amountRupees * 100);
   const { data: requestId, error } = await supabase.rpc("request_seller_withdrawal", { p_amount_paise: amountPaise });
   if (error || typeof requestId !== "string") {
-    const reason = error?.message.includes("verified payout") ? "verify-required" : error?.message.includes("available balance") ? "insufficient-balance" : "request-failed";
+    const reason = error?.message.includes("verified payout") ? "verify-required" : error?.message.includes("available balance") || error?.message.includes("payout fee") ? "insufficient-balance" : "request-failed";
     redirect(`/dashboard?wallet=${reason}#seller-wallet`);
   }
 

@@ -1,5 +1,6 @@
-import { requestWithdrawal, savePayoutAccount } from "@/app/actions/payouts";
+import { savePayoutAccount } from "@/app/actions/payouts";
 import { formatPrice } from "@/lib/data/marketplace";
+import { WithdrawalForm } from "@/components/withdrawal-form";
 
 type PayoutAccount = {
   id: string;
@@ -17,6 +18,7 @@ type PayoutAccount = {
 type Withdrawal = {
   id: string;
   amount_paise: number;
+  withdrawal_fee_paise: number;
   status: "requested" | "processing" | "paid" | "rejected" | "cancelled" | "failed";
   provider_payout_id: string | null;
   provider_status: string | null;
@@ -48,8 +50,8 @@ function mask(value: string | null) {
   return `${"•".repeat(Math.min(8, value.length - 4))}${value.slice(-4)}`;
 }
 
-export function SellerWallet({ account, withdrawals, earnedPaise, reservedPaise, paidPaise, message }: { account: PayoutAccount | null; withdrawals: Withdrawal[]; earnedPaise: number; reservedPaise: number; paidPaise: number; message?: string }) {
-  const availablePaise = Math.max(0, earnedPaise - reservedPaise - paidPaise);
+export function SellerWallet({ account, withdrawals, earnedPaise, pendingDebitPaise, pendingPayoutPaise, paidDebitPaise, paidPaise, message }: { account: PayoutAccount | null; withdrawals: Withdrawal[]; earnedPaise: number; pendingDebitPaise: number; pendingPayoutPaise: number; paidDebitPaise: number; paidPaise: number; message?: string }) {
+  const availablePaise = Math.max(0, earnedPaise - pendingDebitPaise - paidDebitPaise);
   const notice = message ? messages[message] : null;
 
   return <section id="seller-wallet" className="mt-8 overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-sm">
@@ -57,7 +59,7 @@ export function SellerWallet({ account, withdrawals, earnedPaise, reservedPaise,
       <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">Seller wallet</p>
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <WalletMetric label="Available to withdraw" value={formatPrice(availablePaise)} />
-        <WalletMetric label="Pending withdrawals" value={formatPrice(reservedPaise)} />
+        <WalletMetric label="Pending payouts" value={formatPrice(pendingPayoutPaise)} />
         <WalletMetric label="Paid to you" value={formatPrice(paidPaise)} />
       </div>
       <p className="mt-5 max-w-3xl text-sm leading-6 text-slate-300">Digital-product commission is deducted before earnings reach this wallet. Service earnings have no sale commission. Subscription payments and Coursely AI commission remain with the platform owner.</p>
@@ -82,13 +84,13 @@ export function SellerWallet({ account, withdrawals, earnedPaise, reservedPaise,
 
       <div>
         <h2 className="text-xl font-black">Withdraw earnings</h2>
-        <p className="mt-1 text-sm text-slate-600">Minimum withdrawal is INR 100. Cashfree sends it automatically to your verified UPI or bank account.</p>
-        <form action={requestWithdrawal} className="mt-5 flex gap-3"><input name="amountRupees" type="number" min="100" max={Math.floor(availablePaise / 100)} step="0.01" required placeholder="Amount in INR" className="min-w-0 flex-1 rounded-xl border border-slate-300 p-3" /><button disabled={account?.verification_status !== "verified" || availablePaise < 10000} className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300">Withdraw</button></form>
+        <p className="mt-1 text-sm text-slate-600">Minimum withdrawal is INR 100. Enter how much you want to receive; the payout fee is charged separately to your seller wallet.</p>
+        <WithdrawalForm method={account?.method ?? "upi"} availablePaise={availablePaise} enabled={account?.verification_status === "verified"} />
         {account?.verification_status !== "verified" && <p className="mt-2 text-xs font-semibold text-amber-700">Withdrawal unlocks after automatic Cashfree verification.</p>}
 
         <div className="mt-6 space-y-3">
           <h3 className="text-sm font-black uppercase tracking-wider text-slate-500">Withdrawal history</h3>
-          {withdrawals.map((withdrawal) => <article key={withdrawal.id} className="rounded-2xl border border-slate-200 p-4 text-sm"><div className="flex items-center justify-between gap-3"><div><p className="font-black">{formatPrice(withdrawal.amount_paise)}</p><p className="mt-1 text-xs text-slate-500">{new Date(withdrawal.requested_at).toLocaleString("en-IN")}</p></div><Status status={withdrawal.status} /></div>{withdrawal.provider_utr && <p className="mt-2 text-xs text-slate-600">UTR: {withdrawal.provider_utr}</p>}{withdrawal.provider_payout_id && <p className="mt-1 text-xs text-slate-600">Cashfree reference: {withdrawal.provider_payout_id}</p>}{withdrawal.provider_status_code && <p className="mt-1 text-xs text-slate-500">Provider status: {withdrawal.provider_status_code.replaceAll("_", " ")}</p>}{withdrawal.admin_note && <p className="mt-2 text-xs text-slate-600">{withdrawal.admin_note}</p>}</article>)}
+          {withdrawals.map((withdrawal) => <article key={withdrawal.id} className="rounded-2xl border border-slate-200 p-4 text-sm"><div className="flex items-center justify-between gap-3"><div><p className="font-black">Seller receives {formatPrice(withdrawal.amount_paise)}</p><p className="mt-1 text-xs text-slate-500">Fee {formatPrice(withdrawal.withdrawal_fee_paise)} · Wallet debit {formatPrice(withdrawal.amount_paise + withdrawal.withdrawal_fee_paise)}</p><p className="mt-1 text-xs text-slate-500">{new Date(withdrawal.requested_at).toLocaleString("en-IN")}</p></div><Status status={withdrawal.status} /></div>{withdrawal.provider_utr && <p className="mt-2 text-xs text-slate-600">UTR: {withdrawal.provider_utr}</p>}{withdrawal.provider_payout_id && <p className="mt-1 text-xs text-slate-600">Cashfree reference: {withdrawal.provider_payout_id}</p>}{withdrawal.provider_status_code && <p className="mt-1 text-xs text-slate-500">Provider status: {withdrawal.provider_status_code.replaceAll("_", " ")}</p>}{withdrawal.admin_note && <p className="mt-2 text-xs text-slate-600">{withdrawal.admin_note}</p>}</article>)}
           {!withdrawals.length && <p className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">No withdrawals yet.</p>}
         </div>
       </div>

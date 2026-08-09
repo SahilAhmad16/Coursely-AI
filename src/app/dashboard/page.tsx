@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 type ProductRow = { id: string; title: string; status: "draft" | "pending_review" | "published" | "archived" | "rejected"; price_paise: number; listing_type: string };
 type LedgerRow = { commission_paise: number; seller_net_paise: number; status: "pending" | "earned" | "settled" | "refunded" };
 type PayoutAccountRow = { id: string; method: "upi" | "bank"; account_holder_name: string; upi_id: string | null; bank_name: string | null; bank_account_number: string | null; bank_ifsc: string | null; verification_status: "unverified" | "verified" | "rejected"; verification_note: string | null; provider_status: string | null };
-type WithdrawalRow = { id: string; amount_paise: number; status: "requested" | "processing" | "paid" | "rejected" | "cancelled" | "failed"; provider_payout_id: string | null; provider_status: string | null; provider_status_code: string | null; provider_utr: string | null; admin_note: string | null; requested_at: string };
+type WithdrawalRow = { id: string; amount_paise: number; withdrawal_fee_paise: number; status: "requested" | "processing" | "paid" | "rejected" | "cancelled" | "failed"; provider_payout_id: string | null; provider_status: string | null; provider_status_code: string | null; provider_utr: string | null; admin_note: string | null; requested_at: string };
 type VerificationRow = {
   status: "submitted" | "approved" | "changes_requested" | "rejected";
   legal_name: string;
@@ -41,7 +41,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     supabase.from("platform_ledger").select("commission_paise,seller_net_paise,status").order("created_at", { ascending: false }),
     supabase.from("seller_verifications").select("status,legal_name,business_type,document_kind,document_last4,address_line,review_note,submitted_at").eq("seller_id", user.id).maybeSingle(),
     supabase.from("seller_payout_accounts").select("id,method,account_holder_name,upi_id,bank_name,bank_account_number,bank_ifsc,verification_status,verification_note,provider_status").eq("seller_id", user.id).maybeSingle(),
-    supabase.from("seller_withdrawal_requests").select("id,amount_paise,status,provider_payout_id,provider_status,provider_status_code,provider_utr,admin_note,requested_at").eq("seller_id", user.id).order("requested_at", { ascending: false }),
+    supabase.from("seller_withdrawal_requests").select("id,amount_paise,withdrawal_fee_paise,status,provider_payout_id,provider_status,provider_status_code,provider_utr,admin_note,requested_at").eq("seller_id", user.id).order("requested_at", { ascending: false }),
   ]);
 
   const planAccess = store ? await getStoreSellerAccess(supabase, store.id) : { subscriptions: [], lockedPlans: [], isLocked: false };
@@ -57,7 +57,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const netEarnings = withdrawableLedger.reduce((total, item) => total + item.seller_net_paise, 0);
   const commissionPaid = withdrawableLedger.reduce((total, item) => total + item.commission_paise, 0);
   const withdrawalRows = (withdrawals ?? []) as WithdrawalRow[];
-  const reservedPaise = withdrawalRows.filter((item) => item.status === "requested" || item.status === "processing").reduce((total, item) => total + item.amount_paise, 0);
+  const pendingRows = withdrawalRows.filter((item) => item.status === "requested" || item.status === "processing");
+  const pendingDebitPaise = pendingRows.reduce((total, item) => total + item.amount_paise + item.withdrawal_fee_paise, 0);
+  const pendingPayoutPaise = pendingRows.reduce((total, item) => total + item.amount_paise, 0);
+  const paidDebitPaise = withdrawalRows.filter((item) => item.status === "paid").reduce((total, item) => total + item.amount_paise + item.withdrawal_fee_paise, 0);
   const paidPaise = withdrawalRows.filter((item) => item.status === "paid").reduce((total, item) => total + item.amount_paise, 0);
   const walletMessage = (await searchParams).wallet;
 
@@ -92,7 +95,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <Metric label="Platform commission (10%)" value={formatPrice(commissionPaid)} />
       </div>
 
-      {store && <SellerWallet account={(payoutAccount ?? null) as PayoutAccountRow | null} withdrawals={withdrawalRows} earnedPaise={netEarnings} reservedPaise={reservedPaise} paidPaise={paidPaise} message={walletMessage} />}
+      {store && <SellerWallet account={(payoutAccount ?? null) as PayoutAccountRow | null} withdrawals={withdrawalRows} earnedPaise={netEarnings} pendingDebitPaise={pendingDebitPaise} pendingPayoutPaise={pendingPayoutPaise} paidDebitPaise={paidDebitPaise} paidPaise={paidPaise} message={walletMessage} />}
 
       {!store && <SellerStoreApplicationForm />}
 

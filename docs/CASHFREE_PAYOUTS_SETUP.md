@@ -6,10 +6,16 @@ net ledger balance is withdrawable.
 
 Seller withdrawals do not require a Coursely admin approval. A seller first
 saves a UPI ID or bank account. Cashfree verifies it as a beneficiary. When the
-seller selects **Withdraw**, Coursely reserves that amount and sends an
+seller selects **Withdraw**, Coursely reserves the seller payout plus the
+withdrawal processing fee and sends the requested payout amount in an
 asynchronous Cashfree Payouts V2 transfer. Signed webhooks update the final
-status and UTR automatically. Failed or reversed transfers release the amount
-back into the seller's available balance.
+status and UTR automatically. Failed or reversed transfers release both the
+payout amount and fee back into the seller's available balance.
+
+The fee follows Cashfree's standard domestic payout schedule for UPI or NEFT,
+including 18% GST. It is displayed before submission and stored on every
+withdrawal. The buyer is not surcharged. Platform commission and subscription
+income are not reduced by payout charges.
 
 ## Required production configuration
 
@@ -51,6 +57,10 @@ available balance in the Cashfree Payouts account for seller withdrawals.
 Cashfree and banking charges, KYC, limits, holds, and compliance checks still
 apply. A Cashfree provider-side `APPROVAL_PENDING` or compliance hold is not a
 Coursely admin approval.
+
+Cashfree may change its public pricing or assign custom merchant pricing. If
+that happens, update both `withdrawal-fees.ts` and the authoritative
+`request_seller_withdrawal` database function before accepting more payouts.
 
 Currently supported seller destinations are UPI and Indian bank transfer. A
 generic "other" destination is intentionally not accepted because it cannot be
